@@ -52,20 +52,62 @@ async function loadFestivals() {
             return;
         }
 
-        grid.innerHTML = festivals.map((festival, index) => `
-            <article class="festival-card" id="festival-${escapeHtml(festival.id)}">
-                <div class="festival-card__image">
-                    <img src="${escapeHtml(festival.imagenUrl || assets[index % assets.length])}" alt="${escapeHtml(festival.nombre)}">
-                    <span>${escapeHtml(festival.estado || "Publicado")}</span>
-                </div>
-                <div class="festival-card__body">
-                    <p>${formatDate(festival.fechaInicio)} · ${escapeHtml(festival.ubicacion?.ciudad || "Ubicación por confirmar")}</p>
-                    <h3>${escapeHtml(festival.nombre)}</h3>
-                    <p class="festival-card__description">${escapeHtml(festival.descripcion || "")}<br><strong>Artistas:</strong> ${escapeHtml(["Charlotte de Witte · Amelie Lens", "Carl Cox · Nina Kraviz", "Adam Beyer · Boris Brejcha"][index % 3])}</p>
-                    <a class="btn btn--ghost btn--full" href="/festivales.html?id=${encodeURIComponent(festival.id)}">Ver festival</a>
-                </div>
-            </article>
-        `).join("");
+        const cards = festivals.map((festival, index) => {
+            const article = document.createElement("article");
+            article.className = "festival-card";
+            article.id = `festival-${festival.id ?? ""}`;
+
+            const imageWrapper = document.createElement("div");
+            imageWrapper.className = "festival-card__image";
+
+            const img = document.createElement("img");
+            const fallbackImg = assets[index % assets.length];
+            const rawImg = String(festival.imagenUrl || "").trim();
+            img.src = /^https?:\/\//i.test(rawImg) || (rawImg && !rawImg.includes(":"))
+                ? rawImg
+                : fallbackImg;
+            img.alt = String(festival.nombre || "");
+
+            const badge = document.createElement("span");
+            badge.textContent = festival.estado || "Publicado";
+            imageWrapper.append(img, badge);
+
+            const body = document.createElement("div");
+            body.className = "festival-card__body";
+
+            const meta = document.createElement("p");
+            meta.textContent = `${formatDate(festival.fechaInicio)} · ${festival.ubicacion?.ciudad || "Ubicación por confirmar"}`;
+
+            const title = document.createElement("h3");
+            title.textContent = festival.nombre || "";
+
+            const description = document.createElement("p");
+            description.className = "festival-card__description";
+            const strong = document.createElement("strong");
+            strong.textContent = "Artistas:";
+            const artistsLine = [
+                "Charlotte de Witte · Amelie Lens",
+                "Carl Cox · Nina Kraviz",
+                "Adam Beyer · Boris Brejcha"
+            ][index % 3];
+            description.append(
+                document.createTextNode(festival.descripcion || ""),
+                document.createElement("br"),
+                strong,
+                document.createTextNode(` ${artistsLine}`)
+            );
+
+            const link = document.createElement("a");
+            link.className = "btn btn--ghost btn--full";
+            link.href = `/festivales.html?id=${encodeURIComponent(festival.id ?? "")}`;
+            link.textContent = "Ver festival";
+
+            body.append(meta, title, description, link);
+            article.append(imageWrapper, body);
+            return article;
+        });
+
+        grid.replaceChildren(...cards);
         renderGlobe(festivals);
     } catch (error) {
         grid.innerHTML = `
