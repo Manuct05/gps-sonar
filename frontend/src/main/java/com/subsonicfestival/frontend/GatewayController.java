@@ -1,6 +1,7 @@
 package com.subsonicfestival.frontend;
 
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -22,11 +23,14 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @RestController
 @RequestMapping("/api/gateway")
 public class GatewayController {
+
+    private static final Pattern SAFE_ID_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]+$");
 
     private final RestTemplate restTemplate;
     private final String eventsUrl;
@@ -58,17 +62,17 @@ public class GatewayController {
 
     @GetMapping("/events/{id}")
     public ResponseEntity<?> event(@PathVariable("id") String id) {
-        return proxy(eventsUrl + "/eventos/" + id, HttpMethod.GET, null, null);
+        return proxy(buildPathUrl(eventsUrl, "eventos", validateId(id)), HttpMethod.GET, null, null);
     }
 
     @GetMapping("/events/{id}/passes")
     public ResponseEntity<?> passes(@PathVariable("id") String id) {
-        return proxy(eventsUrl + "/eventos/" + id + "/pases", HttpMethod.GET, null, null);
+        return proxy(buildPathUrl(eventsUrl, "eventos", validateId(id), "pases"), HttpMethod.GET, null, null);
     }
 
     @GetMapping("/events/{id}/schedule")
     public ResponseEntity<?> schedule(@PathVariable("id") String id) {
-        return proxy(eventsUrl + "/eventos/" + id + "/escaleta", HttpMethod.GET, null, null);
+        return proxy(buildPathUrl(eventsUrl, "eventos", validateId(id), "escaleta"), HttpMethod.GET, null, null);
     }
 
     @GetMapping("/artists")
@@ -78,7 +82,7 @@ public class GatewayController {
 
     @GetMapping("/artists/{id}")
     public ResponseEntity<?> artist(@PathVariable("id") String id) {
-        return proxy(artistsUrl + "/v1/artistas/" + id, HttpMethod.GET, null, null);
+        return proxy(buildPathUrl(artistsUrl, "v1", "artistas", validateId(id)), HttpMethod.GET, null, null);
     }
 
     @PostMapping("/auth/login")
@@ -100,7 +104,7 @@ public class GatewayController {
 
     @GetMapping("/products/{id}")
     public ResponseEntity<?> product(@PathVariable("id") String id) {
-        return proxy(inventoryUrl + "/inventario/productos/" + id, HttpMethod.GET, null, null);
+        return proxy(buildPathUrl(inventoryUrl, "inventario", "productos", validateId(id)), HttpMethod.GET, null, null);
     }
 
     @GetMapping("/grounds")
@@ -124,7 +128,7 @@ public class GatewayController {
                                           @RequestHeader(value = "Authorization", required = false) String authorization,
                                           @RequestHeader(value = "X-User-Id", required = false) String userId,
                                           @RequestHeader(value = "X-User-Role", required = false) String role) {
-        return proxy(groundsUrl + "/api/grounds/" + id, HttpMethod.PUT, body, authorization, userId, role);
+        return proxy(buildPathUrl(groundsUrl, "api", "grounds", validateId(id)), HttpMethod.PUT, body, authorization, userId, role);
     }
 
     @DeleteMapping("/grounds/{id}")
@@ -132,7 +136,7 @@ public class GatewayController {
                                           @RequestHeader(value = "Authorization", required = false) String authorization,
                                           @RequestHeader(value = "X-User-Id", required = false) String userId,
                                           @RequestHeader(value = "X-User-Role", required = false) String role) {
-        return proxy(groundsUrl + "/api/grounds/" + id, HttpMethod.DELETE, null, authorization, userId, role);
+        return proxy(buildPathUrl(groundsUrl, "api", "grounds", validateId(id)), HttpMethod.DELETE, null, authorization, userId, role);
     }
 
     @PostMapping("/grounds/{id}/rent")
@@ -141,7 +145,7 @@ public class GatewayController {
                                         @RequestHeader(value = "Authorization", required = false) String authorization,
                                         @RequestHeader(value = "X-User-Id", required = false) String userId,
                                         @RequestHeader(value = "X-User-Role", required = false) String role) {
-        return proxy(groundsUrl + "/api/grounds/" + id + "/alquilar", HttpMethod.POST, body, authorization, userId, role);
+        return proxy(buildPathUrl(groundsUrl, "api", "grounds", validateId(id), "alquilar"), HttpMethod.POST, body, authorization, userId, role);
     }
 
     @GetMapping("/orders")
@@ -161,28 +165,43 @@ public class GatewayController {
     public ResponseEntity<?> order(@PathVariable("id") String id,
                                    @RequestHeader(value = "Authorization", required = false) String authorization,
                                    @RequestHeader(value = "X-User-Id", required = false) String userId) {
-        return proxy(inventoryUrl + "/pedidos/" + id, HttpMethod.GET, null, authorization, userId);
+        return proxy(buildPathUrl(inventoryUrl, "pedidos", validateId(id)), HttpMethod.GET, null, authorization, userId);
     }
 
     @PostMapping("/orders/{id}/cancel")
     public ResponseEntity<?> cancelOrder(@PathVariable("id") String id,
                                          @RequestHeader(value = "Authorization", required = false) String authorization,
                                          @RequestHeader(value = "X-User-Id", required = false) String userId) {
-        return proxy(inventoryUrl + "/pedidos/" + id + "/cancelacion", HttpMethod.POST, null, authorization, userId);
+        return proxy(buildPathUrl(inventoryUrl, "pedidos", validateId(id), "cancelacion"), HttpMethod.POST, null, authorization, userId);
     }
 
     @GetMapping("/entries/{id}")
     public ResponseEntity<?> entry(@PathVariable("id") String id,
                                    @RequestHeader(value = "Authorization", required = false) String authorization,
                                    @RequestHeader(value = "X-User-Id", required = false) String userId) {
-        return proxy(inventoryUrl + "/entradas/" + id, HttpMethod.GET, null, authorization, userId);
+        return proxy(buildPathUrl(inventoryUrl, "entradas", validateId(id)), HttpMethod.GET, null, authorization, userId);
     }
 
     @PostMapping("/entries/{id}/cancel")
     public ResponseEntity<?> cancelEntry(@PathVariable("id") String id,
                                          @RequestHeader(value = "Authorization", required = false) String authorization,
                                          @RequestHeader(value = "X-User-Id", required = false) String userId) {
-        return proxy(inventoryUrl + "/entradas/" + id + "/cancelacion", HttpMethod.POST, null, authorization, userId);
+        return proxy(buildPathUrl(inventoryUrl, "entradas", validateId(id), "cancelacion"), HttpMethod.POST, null, authorization, userId);
+    }
+
+    private String validateId(String id) {
+        if (id == null || !SAFE_ID_PATTERN.matcher(id).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Identificador no valido");
+        }
+        return id;
+    }
+
+    private String buildPathUrl(String baseUrl, String... segments) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(baseUrl);
+        for (String segment : segments) {
+            builder.pathSegment(segment);
+        }
+        return builder.build().encode().toUriString();
     }
 
     private ResponseEntity<?> proxy(String url, HttpMethod method, Object body, String authorization) {
